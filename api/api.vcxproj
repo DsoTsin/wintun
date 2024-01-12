@@ -18,7 +18,7 @@
     <ClCompile>
       <PreprocessorDefinitions>_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='Win32'">MAYBE_WOW64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">MAYBE_WOW64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">MAYBE_WOW64;WITH_PYTHON;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='ARM'">MAYBE_WOW64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='ARM64'">%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/volatile:iso %(AdditionalOptions)</AdditionalOptions>
@@ -68,6 +68,7 @@
     <ClCompile Include="driver.c" />
     <ClCompile Include="logger.c" />
     <ClCompile Include="namespace.c" />
+    <ClCompile Include="pybinding.c" />
     <ClCompile Include="registry.c" />
     <ClCompile Include="resource.c" />
     <ClCompile Include="session.c" />
@@ -78,6 +79,10 @@
   <ImportGroup Label="ExtensionTargets" />
   <PropertyGroup>
     <CleanDependsOn>CleanInfVersion;CleanNci;$(CleanDependsOn)</CleanDependsOn>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(USERPROFILE)\AppData\Local\Programs\Python\Python312\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(USERPROFILE)\AppData\Local\Programs\Python\Python39\libs;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
   </PropertyGroup>
   <Target Name="BuildInfVersion" BeforeTargets="ClCompile" Inputs="$(OutDir)driver\wintun.inf" Outputs="$(IntDir)wintun-inf.h">
     <Exec Command="cscript.exe /nologo &quot;extract-driverver.js&quot; &lt; &quot;$(OutDir)driver\wintun.inf&quot; &gt; &quot;$(IntDir)wintun-inf.h&quot;" />

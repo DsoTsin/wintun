@@ -8,8 +8,7 @@
 #include "resource.h"
 #include <Windows.h>
 #include <Shlwapi.h>
-#include <NTSecAPI.h>
-
+#include <bcrypt.h>
 _Use_decl_annotations_
 const VOID *
 ResourceGetAddress(LPCWSTR ResourceName, DWORD *Size)
@@ -106,7 +105,7 @@ ResourceCreateTemporaryDirectory(_Out_writes_z_(MAX_PATH) LPWSTR RandomTempSubDi
         return FALSE;
     }
     UCHAR RandomBytes[32] = { 0 };
-    if (!RtlGenRandom(RandomBytes, sizeof(RandomBytes)))
+    if (BCryptGenRandom(NULL, RandomBytes, sizeof(RandomBytes), BCRYPT_USE_SYSTEM_PREFERRED_RNG))
     {
         LOG(WINTUN_LOG_ERR, L"Failed to generate random");
         SetLastError(ERROR_GEN_FAILURE);

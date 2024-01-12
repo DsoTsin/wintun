@@ -12,6 +12,7 @@
 #include <Shlwapi.h>
 #include <shellapi.h>
 #include <wchar.h>
+#include <strsafe.h>
 
 #include "driver.h"
 #include "adapter.h"
@@ -263,6 +264,166 @@ DriverInstallDeferredCleanup(HDEVINFO DevInfoExistingAdapters, SP_DEVINFO_DATA_L
         SetupDiDestroyDeviceInfoList(DevInfoExistingAdapters);
 }
 
+// Driver Version
+#define INFSTR_DRIVERVERSION_SECTION    L"DriverVer"
+#define INFSTR_KEY_CATALOGFILE          L"CatalogFile"
+#define INFSTR_SECT_VERSION             L"Version"
+
+BOOL CheckOEMDriverExist(int Count, LPCWSTR DriverNames[], LPCWSTR Versions[], BOOL bExpired[], BOOL bExists[], BOOL bUninstall)
+{
+    WCHAR FindName[MAX_PATH];
+    HANDLE hFind = INVALID_HANDLE_VALUE;
+    WIN32_FIND_DATAW wfd;
+    if (!GetWindowsDirectoryW(FindName, ARRAYSIZE(FindName)) ||
+        FAILED(StringCchCatW(FindName, ARRAYSIZE(FindName), L"\\INF\\OEM*.INF"))) {
+        goto final;
+    }
+    hFind = FindFirstFileW(FindName, &wfd);
+    if (hFind == INVALID_HANDLE_VALUE) {
+        goto final;
+    }
+    do {
+        HINF hInf = INVALID_HANDLE_VALUE;
+        UINT ErrorLine;
+        INFCONTEXT Context;
+        WCHAR InfData[MAX_INF_STRING_LENGTH];
+        hInf = SetupOpenInfFileW(wfd.cFileName, NULL, INF_STYLE_WIN4, &ErrorLine);
+        if (hInf == INVALID_HANDLE_VALUE) {
+            continue;
+        }
+        if (SetupFindFirstLineW(hInf, INFSTR_SECT_VERSION, INFSTR_KEY_CATALOGFILE, &Context)
+            && SetupGetStringFieldW(&Context, 1, InfData, ARRAYSIZE(InfData), NULL))
+        {
+            for (int i = 0; i < Count; i++)
+            {
+                WCHAR TestCatName[64] = { 0 };
+                StringCchPrintfW(TestCatName, 64, L"%s.cat", DriverNames[i]);
+                if (_wcsicmp(TestCatName, InfData) == 0)
+                {
+                    if (bUninstall)
+                    {
+                        STARTUPINFO start_info = { 0 };
+                        start_info.cb = sizeof(STARTUPINFO);
+                        start_info.dwFlags = STARTF_USESHOWWINDOW;
+                        start_info.wShowWindow = SW_HIDE;
+                        start_info.dwFlags = 0;
+                        PROCESS_INFORMATION temp_process_info = { 0 };
+                        WCHAR commandLine[1024];
+                        wnsprintfW(commandLine, 1024, L"pnputil.exe /delete-driver %s /force", wfd.cFileName);
+                        if (!CreateProcessW(NULL, (LPWSTR)commandLine, NULL, NULL,
+                            TRUE, // Handles are inherited.
+                            NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW, NULL,
+                            NULL, &start_info,
+                            &temp_process_info)) {
+                            LOG(WINTUN_LOG_ERR, L"Could not uninstall driver %s, %s", wfd.cFileName, DriverNames[i]);
+                            continue;
+                        }
+                        WaitForSingleObject(temp_process_info.hProcess, INFINITE);
+                        DWORD dw_exit_code = 0;
+                        GetExitCodeProcess(temp_process_info.hProcess, &dw_exit_code);
+                        CloseHandle(temp_process_info.hProcess);
+                        LOG(WINTUN_LOG_INFO, L"Finish uninstall %s, exit: %u", DriverNames[i], dw_exit_code);
+                    }
+                    else
+                    {
+                        if (SetupFindFirstLineW(hInf, INFSTR_SECT_VERSION, INFSTR_DRIVERVERSION_SECTION, &Context))
+                        {
+                            bExists[i] = TRUE;
+                            if (SetupGetStringFieldW(&Context, 1, InfData, ARRAYSIZE(InfData), NULL)) { // Test date
+                            }
+                            else
+                            {
+                                LOG(WINTUN_LOG_WARN, L"Unknown driver date: %s", DriverNames[i]);
+                                continue;
+                            }
+                            if (SetupGetStringFieldW(&Context, 2, InfData, ARRAYSIZE(InfData), NULL)) { // test version
+                                int Ret = _wcsicmp(Versions[i], InfData);
+                                bExpired[i] = Ret > 0 ? TRUE : FALSE;
+                                if (bExpired[i])
+                                {
+                                    LOG(WINTUN_LOG_WARN, L"%s driver version: %s (current) is expired (new: %s), need to install", DriverNames[i], InfData, Versions[i]);
+                                }
+                                else
+                                {
+                                    LOG(WINTUN_LOG_INFO, L"%s driver use current version: %s, [%s] tested.", DriverNames[i], InfData, Versions[i]);
+                                }
+                            }
+                            else {
+                                LOG(WINTUN_LOG_WARN, L"Unknown driver version: %s", DriverNames[i]);
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else {
+            continue;
+        }
+
+        if (hInf != INVALID_HANDLE_VALUE) {
+            SetupCloseInfFile(hInf);
+        }
+    } while (FindNextFileW(hFind, &wfd));
+    FindClose(hFind);
+final:
+    return TRUE;
+}
+
+static LPCWSTR DriverExts[3] = { L"sys", L"cat", L"inf", };
+
+_Use_decl_annotations_
+BOOL
+SimpleDriverInstall(LPCWSTR TempDir, LPCWSTR ResourceNamePrefix, LPCWSTR FileNamePrefix) {
+    LOG(WINTUN_LOG_INFO, L"Installing %s driver", ResourceNamePrefix);
+    DWORD LastError = 0;
+    WCHAR ExtractPath[MAX_PATH] = { 0 };
+    for (int i = 0; i < 3; i++) {
+        WCHAR FileName[64] = { 0 };
+        wnsprintfW(FileName, 64, L"%s.%s", FileNamePrefix, DriverExts[i]);
+        if (wcscmp(L"cat", DriverExts[i]) == 0)
+        {
+            _wcslwr(FileName);
+        }
+        WCHAR ResourceName[64] = { 0 };
+        wnsprintfW(ResourceName, 64, L"%s.%s", ResourceNamePrefix, DriverExts[i]);
+        if (!PathCombineW(ExtractPath, TempDir, FileName)) {
+            // TODO: log error
+            return FALSE;
+        }
+        if (!ResourceCopyToFile(ExtractPath, ResourceName)) {
+            // TODO: log error
+            return FALSE;
+        }
+
+    }
+    //if (!SetupCopyOEMInfW(ExtractPath, NULL, SPOST_NONE, 0, NULL, 0, NULL, NULL)) {    
+    //    LastError = LOG_LAST_ERROR(L"Could not install driver %s to store", ExtractPath);
+    //}
+    STARTUPINFO start_info = {0};
+    start_info.cb = sizeof(STARTUPINFO);
+    start_info.dwFlags = STARTF_USESHOWWINDOW;
+    start_info.wShowWindow = SW_HIDE;
+    start_info.dwFlags = 0;
+    PROCESS_INFORMATION temp_process_info = {0};
+    WCHAR commandLine[1024];
+    wnsprintfW(commandLine, 1024, L"pnputil.exe /add-driver %s /install", ExtractPath);
+    if (!CreateProcessW(NULL, (LPWSTR)commandLine, NULL, NULL,
+        TRUE, // Handles are inherited.
+        NORMAL_PRIORITY_CLASS | CREATE_NO_WINDOW, NULL,
+        TempDir, &start_info,
+        &temp_process_info)) {
+        LastError = LOG_LAST_ERROR(L"Could not install driver %s to store", ExtractPath);
+        return FALSE;
+    }
+    WaitForSingleObject(temp_process_info.hProcess, INFINITE);
+    DWORD dw_exit_code = 0;
+    GetExitCodeProcess(temp_process_info.hProcess, &dw_exit_code);
+    CloseHandle(temp_process_info.hProcess);
+    LOG(WINTUN_LOG_INFO, L"Install %s completely, exit: %u", ResourceNamePrefix, dw_exit_code);
+    return TRUE;
+}
+
 _Use_decl_annotations_
 BOOL
 DriverInstall(HDEVINFO *DevInfoExistingAdaptersForCleanup, SP_DEVINFO_DATA_LIST **ExistingAdaptersForCleanup)
@@ -445,6 +606,101 @@ cleanupDriverInstallationLock:
     NamespaceReleaseMutex(DriverInstallationLock);
     return RET_ERROR(TRUE, LastError);
 }
+
+#pragma comment(lib, "ntdll.lib")
+NTSYSAPI NTSTATUS NTAPI RtlGetVersion(
+    _Out_ PRTL_OSVERSIONINFOEXW lpVersionInformation
+);
+
+static LPCWSTR DriverNames[] = { L"WetestUsbFilter", L"WeTestUsbNcm" };
+static LPCWSTR Versions[] = { L"11.36.33.666", L"11.36.59.886" };
+
+_Use_decl_annotations_
+BOOL WINAPI CheckWetestDriverStatus(BOOL Exists[2], BOOL Expired[2])
+{
+    return CheckOEMDriverExist(2, DriverNames, Versions, Expired, Exists, FALSE);
+}
+
+_Use_decl_annotations_
+DWORD WINAPI UninstallWeTestDriver(VOID)
+{
+    BOOL    Exists[] = { FALSE, FALSE };
+    BOOL    Expired[] = { FALSE, FALSE };
+    CheckOEMDriverExist(2, DriverNames, Versions, Expired, Exists, TRUE);
+    return 0;
+}
+
+_Use_decl_annotations_
+DWORD WINAPI InstallWeTestDriver(VOID)
+{
+    DWORD LastError = 0;
+    WCHAR RandomTempSubDirectory[MAX_PATH];
+    if (!ResourceCreateTemporaryDirectory(RandomTempSubDirectory))
+    {
+        LastError = LOG_LAST_ERROR(L"Failed to create temporary folder %s", RandomTempSubDirectory);
+        goto cleanup;
+    }
+    BOOL    Exists[] = { FALSE, FALSE };
+    BOOL    Expired[] = { FALSE, FALSE };
+    CheckOEMDriverExist(2, DriverNames, Versions, Expired, Exists, FALSE);
+    // Install Apple Usb drivers
+    if (!Exists[0] || Expired[0])
+    {
+        LOG(WINTUN_LOG_INFO, L"WeTestUsbFilter driver not exists or expired.");
+        SimpleDriverInstall(RandomTempSubDirectory, L"WeTestUsbFilter", L"WeTestUsbFilter");
+    }
+    else
+    {
+        LOG(WINTUN_LOG_INFO, L"use existing WeTestUsbFilter driver.");
+    }
+
+    if (!Exists[1] || Expired[1])
+    {
+        LOG(WINTUN_LOG_INFO, L"WeTestUsbNcm driver not exists or expired.");
+        OSVERSIONINFOEXW osv;
+        osv.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
+        if (RtlGetVersion(&osv) == 0)
+        {
+            if (osv.dwMajorVersion == 10 && osv.dwMinorVersion == 0)
+            {
+                if (osv.dwBuildNumber >= 22000)
+                {
+                    SimpleDriverInstall(RandomTempSubDirectory, L"win11_WeTestUsbNcm", L"WeTestUsbNcm");
+                }
+                else if (osv.dwBuildNumber >= 19041)
+                {
+                    SimpleDriverInstall(RandomTempSubDirectory, L"win10_WeTestUsbNcm", L"WeTestUsbNcm");
+                }
+                else 
+                {
+                    LOG(WINTUN_LOG_ERR, L"Unsupported windows 10 version (%d.%d.%d), only support 10.0.19041+",
+                        osv.dwMajorVersion,
+                        osv.dwMinorVersion,
+                        osv.dwBuildNumber
+                    );
+                }
+            }
+            else
+            {
+                LOG(WINTUN_LOG_ERR, L"Unsupported windows version (%d.%d.%d).",
+                    osv.dwMajorVersion, 
+                    osv.dwMinorVersion, 
+                    osv.dwBuildNumber
+                );
+            }
+        }
+    }
+    else
+    {
+        LOG(WINTUN_LOG_INFO, L"use existing WeTestUsbNcm driver.");
+    }
+
+//cleanupDirectory:
+    RemoveDirectoryW(RandomTempSubDirectory);
+cleanup:
+    return TRUE;
+}
+
 
 _Use_decl_annotations_
 BOOL WINAPI WintunDeleteDriver(VOID)
