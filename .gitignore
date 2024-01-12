@@ -21,3 +21,10 @@
 
 # Temporary files
 *~
+python_wintun.egg-info
+*.pdb
+build
+dist
+*.rst
+
+*.egg-info

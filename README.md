@@ -38,6 +38,50 @@ else if (GetLastError() != ERROR_BUFFER_OVERFLOW) // Silently drop packets if th
     Log(L"Packet write failed");
 ```
 
+
+```python
+import os
+import wintun
+from threading import Thread
+
+def log(level, timestamp, message):
+    print(level, timestamp, message)
+
+wintun.set_logger(log)
+
+tun = wintun.TunDevice('Demo', 'tunnel', 0x40000)
+print(wintun.get_driver_version())
+
+if tun:
+    print('MTU=' + str(tun.mtu))
+    tun.mtu = 1500
+    tun.ring_capacity = 1024*1024*8
+    tun.addr = '10.2.0.0'
+    print(tun.mtu)
+    tun.up()
+
+    print(tun.addr)
+
+    print(tun.mtu)
+
+def read_task():
+    while True:
+        packet = tun.read()
+        if packet:
+            print('Received ' + str(len(packet)))
+        else:
+            tun.wait_read_event()
+
+t = Thread(target=read_task)
+t.start()
+
+while True:
+    pass
+
+tun.down()
+```
+
+
 And the `WintunReceivePacket` and `WintunReleaseReceivePacket` functions can be used for receiving packets ([used by `ReceivePackets` in the example.c code](https://git.zx2c4.com/wintun/tree/example/example.c)):
 
 ```C

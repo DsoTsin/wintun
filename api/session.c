@@ -11,6 +11,10 @@
 #include <devioctl.h>
 #include <stdlib.h>
 
+#ifndef PACKET_DEBUG
+#define PACKET_DEBUG 0
+#endif
+
 #pragma warning(disable : 4200) /* nonstandard: zero-sized array in struct/union */
 
 #define TUN_ALIGNMENT sizeof(ULONG)
@@ -22,6 +26,7 @@
 #define TUN_RING_WRAP(Value, Capacity) ((Value) & (Capacity - 1))
 #define LOCK_SPIN_COUNT 0x10000
 #define TUN_PACKET_RELEASE ((DWORD)0x80000000)
+
 
 typedef struct _TUN_PACKET
 {
@@ -168,6 +173,10 @@ WintunGetReadWaitEvent(TUN_SESSION *Session)
     return Session->Descriptor.Send.TailMoved;
 }
 
+#if defined(_DEBUG) && PACKET_DEBUG
+LONG PacketCounter = 0;
+#endif
+
 WINTUN_RECEIVE_PACKET_FUNC WintunReceivePacket;
 _Use_decl_annotations_
 BYTE *WINAPI
@@ -213,6 +222,18 @@ WintunReceivePacket(TUN_SESSION *Session, DWORD *PacketSize)
     BYTE *Packet = BuffPacket->Data;
     Session->Send.Head = TUN_RING_WRAP(Session->Send.Head + AlignedPacketSize, Session->Capacity);
     Session->Send.PacketsToRelease++;
+
+#if defined(_DEBUG) && PACKET_DEBUG
+    InterlockedIncrement(&PacketCounter);
+    WCHAR FileName[MAX_PATH] = { 0 };
+    wsprintfW(FileName, L"%d-recv.packet", PacketCounter);
+    HANDLE File = CreateFileW(FileName, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ,
+        NULL, CREATE_ALWAYS, 0, NULL);
+    DWORD Written = 0;
+    WriteFile(File, Packet, *PacketSize, &Written, NULL);
+    CloseHandle(File);
+#endif
     LeaveCriticalSection(&Session->Send.Lock);
     return Packet;
 cleanup:
@@ -288,6 +309,19 @@ WintunSendPacket(TUN_SESSION *Session, const BYTE *Packet)
     EnterCriticalSection(&Session->Receive.Lock);
     TUN_PACKET *ReleasedBuffPacket = (TUN_PACKET *)(Packet - offsetof(TUN_PACKET, Data));
     ReleasedBuffPacket->Size &= ~TUN_PACKET_RELEASE;
+
+#if defined(_DEBUG) && PACKET_DEBUG
+    InterlockedIncrement(&PacketCounter);
+    WCHAR FileName[MAX_PATH] = { 0 };
+    wsprintfW(FileName, L"%d-send.packet", PacketCounter);
+    HANDLE File = CreateFileW(FileName, GENERIC_READ | GENERIC_WRITE,
+        FILE_SHARE_WRITE | FILE_SHARE_READ,
+        NULL, CREATE_ALWAYS, 0, NULL);
+    DWORD Written = 0;
+    WriteFile(File, Packet, ReleasedBuffPacket->Size, &Written, NULL);
+    CloseHandle(File);
+#endif
+
     while (Session->Receive.PacketsToRelease)
     {
         const TUN_PACKET *BuffPacket =

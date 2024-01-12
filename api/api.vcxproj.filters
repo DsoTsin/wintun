@@ -93,5 +93,8 @@
     <ClCompile Include="registry.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="pybinding.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

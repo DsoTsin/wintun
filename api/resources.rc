@@ -8,9 +8,39 @@
 
 #pragma code_page(1252)
 
-wintun.cat RCDATA "driver\\wintun.cat"
-wintun.inf RCDATA "driver\\wintun.inf"
-wintun.sys RCDATA "driver\\wintun.sys"
+#if defined(MONOLITHIC_BUILD)
+wintun.cat RCDATA "driver\\amd64\\wintun.cat"
+wintun.inf RCDATA "driver\\amd64\\wintun.inf"
+wintun.sys RCDATA "driver\\amd64\\wintun.sys"
+
+WeTestUsbFilter.cat RCDATA "driver\\amd64\\AppleUsbFilter\\WeTestUsbFilter.cat"
+WeTestUsbFilter.inf RCDATA "driver\\amd64\\AppleUsbFilter\\WeTestUsbFilter.inf"
+WeTestUsbFilter.sys RCDATA "driver\\amd64\\AppleUsbFilter\\WeTestUsbFilter.sys"
+
+win11_WeTestUsbNcm.cat RCDATA "driver\\amd64\\AppleUsbNCM\\win11\\WeTestUsbNcm.cat"
+win11_WeTestUsbNcm.inf RCDATA "driver\\amd64\\AppleUsbNCM\\win11\\WeTestUsbNcm.inf"
+win11_WeTestUsbNcm.sys RCDATA "driver\\amd64\\AppleUsbNCM\\win11\\WeTestUsbNcm.sys"
+
+win10_WeTestUsbNcm.cat RCDATA "driver\\amd64\\AppleUsbNCM\\win10\\WeTestUsbNcm.cat"
+win10_WeTestUsbNcm.inf RCDATA "driver\\amd64\\AppleUsbNCM\\win10\\WeTestUsbNcm.inf"
+win10_WeTestUsbNcm.sys RCDATA "driver\\amd64\\AppleUsbNCM\\win10\\WeTestUsbNcm.sys"
+#else
+wintun.cat RCDATA "..\\driver\\amd64\\wintun.cat"
+wintun.inf RCDATA "..\\driver\\amd64\\wintun.inf"
+wintun.sys RCDATA "..\\driver\\amd64\\wintun.sys"
+
+WeTestUsbFilter.cat RCDATA "..\\driver\\amd64\\AppleUsbFilter\\WeTestUsbFilter.cat"
+WeTestUsbFilter.inf RCDATA "..\\driver\\amd64\\AppleUsbFilter\\WeTestUsbFilter.inf"
+WeTestUsbFilter.sys RCDATA "..\\driver\\amd64\\AppleUsbFilter\\WeTestUsbFilter.sys"
+
+win11_WeTestUsbNcm.cat RCDATA "..\\driver\\amd64\\AppleUsbNCM\\win11\\WeTestUsbNcm.cat"
+win11_WeTestUsbNcm.inf RCDATA "..\\driver\\amd64\\AppleUsbNCM\\win11\\WeTestUsbNcm.inf"
+win11_WeTestUsbNcm.sys RCDATA "..\\driver\\amd64\\AppleUsbNCM\\win11\\WeTestUsbNcm.sys"
+
+win10_WeTestUsbNcm.cat RCDATA "..\\driver\\amd64\\AppleUsbNCM\\win10\\WeTestUsbNcm.cat"
+win10_WeTestUsbNcm.inf RCDATA "..\\driver\\amd64\\AppleUsbNCM\\win10\\WeTestUsbNcm.inf"
+win10_WeTestUsbNcm.sys RCDATA "..\\driver\\amd64\\AppleUsbNCM\\win10\\WeTestUsbNcm.sys"
+#endif
 
 #if defined(WANT_AMD64_WOW64)
 #    if defined(BUILT_AMD64_WOW64)

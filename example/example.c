@@ -279,7 +279,7 @@ SendPackets(_Inout_ DWORD_PTR SessionPtr)
         else if (GetLastError() != ERROR_BUFFER_OVERFLOW)
             return LogLastError(L"Packet write failed");
 
-        switch (WaitForSingleObject(QuitEvent, 1000 /* 1 second */))
+        switch (WaitForSingleObject(QuitEvent, 4000 /* 1 second */))
         {
         case WAIT_ABANDONED:
         case WAIT_OBJECT_0:
@@ -326,6 +326,16 @@ int __cdecl main(void)
     MIB_UNICASTIPADDRESS_ROW AddressRow;
     InitializeUnicastIpAddressEntry(&AddressRow);
     WintunGetAdapterLUID(Adapter, &AddressRow.InterfaceLuid);
+    MIB_IF_ROW2 ifRow = {0};
+    WintunGetAdapterLUID(Adapter, &ifRow.InterfaceLuid);
+    GetIfEntry2(&ifRow);
+
+    MIB_IFROW ifRow2 = {0};
+    ifRow2.dwIndex = ifRow.InterfaceIndex;
+GetIfEntry(&ifRow2);
+
+SetIfEntry(&ifRow2);
+
     AddressRow.Address.Ipv4.sin_family = AF_INET;
     AddressRow.Address.Ipv4.sin_addr.S_un.S_addr = htonl((10 << 24) | (6 << 16) | (7 << 8) | (7 << 0)); /* 10.6.7.7 */
     AddressRow.OnLinkPrefixLength = 24; /* This is a /24 network */
