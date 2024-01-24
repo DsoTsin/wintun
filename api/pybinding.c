@@ -230,7 +230,7 @@ ret:
     }
 }
 
-PyDoc_STRVAR(wintun_read_doc, "read(blocking=True, timeout=-1) -> non-blocking read a whole packet buffer, returned as a string.");
+PyDoc_STRVAR(wintun_read_doc, "read() -> non-blocking read a whole packet buffer, returned as a string.");
 
 static PyObject* wintun_write(PyObject *self, PyObject *args) {
     wintun_t *tuntap = (wintun_t *)self;
