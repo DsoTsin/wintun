@@ -332,9 +332,9 @@ int __cdecl main(void)
 
     MIB_IFROW ifRow2 = {0};
     ifRow2.dwIndex = ifRow.InterfaceIndex;
-GetIfEntry(&ifRow2);
+    GetIfEntry(&ifRow2);
 
-SetIfEntry(&ifRow2);
+    SetIfEntry(&ifRow2);
 
     AddressRow.Address.Ipv4.sin_family = AF_INET;
     AddressRow.Address.Ipv4.sin_addr.S_un.S_addr = htonl((10 << 24) | (6 << 16) | (7 << 8) | (7 << 0)); /* 10.6.7.7 */
