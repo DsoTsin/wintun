@@ -2,10 +2,14 @@
 .vs/
 *.user
 
+# Jetbrains
+.idea
+
 # Build Output
 /dist
 /Debug
 /Release
+*.pyd
 
 # Static Driver Verifier Output
 /driver/sdv
@@ -26,5 +30,6 @@ python_wintun.egg-info
 build
 dist
 *.rst
+__pycache__
 
 *.egg-info
