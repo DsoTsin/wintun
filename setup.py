@@ -1,4 +1,4 @@
-from setuptools import setup, Extension
+from setuptools import setup, Extension, find_packages
 
 setup(name='pywintun_pmd3',
       author='zq2024',
@@ -9,6 +9,8 @@ setup(name='pywintun_pmd3',
       description='wintun (WireGuard) wrapper for Python',
       long_description=open('PyReadMe.rst').read(),
       version='0.0.1',
+      packages=find_packages(),
+      requires=['click', 'pyuac'],
       ext_modules=[
           Extension('pywintun_pmd3', sources=[
                 'api/pybinding.c',
